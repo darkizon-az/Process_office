@@ -1,0 +1,7 @@
+import Link from "next/link";
+import { Archive, BarChart3, BookOpen, ClipboardList, FileText, LayoutDashboard, LogOut, ScrollText } from "lucide-react";
+import { requireAdmin } from "@/lib/auth";
+
+export const dynamic="force-dynamic";
+const nav=[["/admin",LayoutDashboard,"Обзор"],["/admin/surveys",ClipboardList,"Опросы"],["/admin/responses",FileText,"Ответы"],["/admin/analytics",BarChart3,"Аналитика"],["/admin/archive",Archive,"Архив"],["/admin/directories",BookOpen,"Справочники"],["/admin/audit",ScrollText,"Журнал действий"]] as const;
+export default async function AdminLayout({children}:{children:React.ReactNode}){const user=await requireAdmin();return <div className="admin-layout"><aside className="sidebar"><Link href="/admin" className="brand"><span className="brandmark">PO</span><span>Process Office</span></Link><nav className="nav">{nav.map(([href,Icon,label])=><Link href={href} key={href}><Icon size={18}/>{label}</Link>)}</nav><div className="sidebar-bottom"><form action="/api/auth/logout" method="post"><button className="button secondary" style={{width:"100%"}}><LogOut size={16}/>Выйти</button></form></div></aside><div className="admin-main"><header className="topbar"><div><b>Process Office Feedback</b><div className="hint">Панель администратора</div></div><div style={{textAlign:"right"}}><b style={{fontSize:13}}>{user.name}</b><div className="hint">{user.email}</div></div></header><main className="admin-content">{children}</main></div></div>}

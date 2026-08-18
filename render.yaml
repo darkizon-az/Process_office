@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: process-office-feedback
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run db:deploy && npm run db:seed && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@process-office.local
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ANALYTICS_MIN_SAMPLE
+        value: "5"
+      - key: ANONYMOUS_COMMENT_MIN
+        value: "3"

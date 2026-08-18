@@ -1,0 +1,292 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+}
+
+enum SurveyStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  ARCHIVED
+}
+
+enum ResponseStatus {
+  IN_PROGRESS
+  SUBMITTED
+  INVALIDATED
+  TEST
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  MULTIPLE_CHOICE
+  SCALE_1_5
+  SCALE_0_10
+  SHORT_TEXT
+  LONG_TEXT
+  DATE
+  PERIOD
+}
+
+enum AnonymityMode {
+  ANONYMOUS
+  IDENTIFIED
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         UserRole   @default(ADMIN)
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  auditLogs    AuditLog[]
+}
+
+model Survey {
+  id               String           @id @default(cuid())
+  title            String
+  slug             String           @unique
+  status           SurveyStatus     @default(DRAFT)
+  currentVersionId String?          @unique
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  versions         SurveyVersion[]  @relation("SurveyVersions")
+  currentVersion   SurveyVersion?   @relation("CurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  responses        SurveyResponse[]
+  archiveRecord    ArchiveRecord?
+
+  @@index([status])
+}
+
+model SurveyVersion {
+  id            String           @id @default(cuid())
+  surveyId      String
+  version       Int
+  anonymityMode AnonymityMode    @default(ANONYMOUS)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  publishedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  survey        Survey           @relation("SurveyVersions", fields: [surveyId], references: [id], onDelete: Cascade)
+  currentFor    Survey?          @relation("CurrentVersion")
+  sections      SurveySection[]
+  responses     SurveyResponse[]
+
+  @@unique([surveyId, version])
+  @@index([surveyId, publishedAt])
+}
+
+model SurveySection {
+  id              String        @id @default(cuid())
+  surveyVersionId String
+  title           String
+  description     String?
+  order           Int
+  surveyVersion   SurveyVersion @relation(fields: [surveyVersionId], references: [id], onDelete: Cascade)
+  questions       Question[]
+
+  @@unique([surveyVersionId, order])
+}
+
+model Question {
+  id            String           @id @default(cuid())
+  sectionId     String
+  analyticsCode String?
+  text          String
+  type          QuestionType
+  required      Boolean          @default(false)
+  order         Int
+  helpText      String?
+  conditionJson String?
+  section       SurveySection    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  options       QuestionOption[]
+  answers       Answer[]
+
+  @@unique([sectionId, order])
+  @@index([analyticsCode])
+}
+
+model QuestionOption {
+  id            String         @id @default(cuid())
+  questionId    String
+  value         String
+  label         String
+  order         Int
+  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answerOptions AnswerOption[]
+
+  @@unique([questionId, value])
+}
+
+model Department {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  active    Boolean          @default(true)
+  responses SurveyResponse[]
+}
+
+model Project {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  active    Boolean          @default(true)
+  responses SurveyResponse[]
+}
+
+model RespondentRole {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  active    Boolean          @default(true)
+  responses SurveyResponse[]
+}
+
+model CollaborationFormat {
+  id        String           @id @default(cuid())
+  name      String           @unique
+  active    Boolean          @default(true)
+  responses SurveyResponse[]
+}
+
+model ProcessOfficeDirection {
+  id        String                    @id @default(cuid())
+  name      String                    @unique
+  active    Boolean                   @default(true)
+  responses SurveyResponseDirection[]
+}
+
+model SurveyResponse {
+  id                 String                    @id @default(cuid())
+  surveyId           String
+  surveyVersionId    String
+  status             ResponseStatus            @default(IN_PROGRESS)
+  idempotencyKey     String                    @unique
+  anonymityMode      AnonymityMode
+  respondentName     String?
+  respondentEmail    String?
+  contactConsent     Boolean                   @default(false)
+  departmentId       String?
+  projectId          String?
+  roleId             String?
+  formatId           String?
+  interactionStart   DateTime?
+  interactionEnd     DateTime?
+  departmentSnapshot String
+  projectSnapshot    String
+  roleSnapshot       String
+  formatSnapshot     String
+  invalidationReason String?
+  invalidatedBy      String?
+  invalidatedAt      DateTime?
+  submittedAt        DateTime?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  survey             Survey                    @relation(fields: [surveyId], references: [id])
+  surveyVersion      SurveyVersion             @relation(fields: [surveyVersionId], references: [id])
+  department         Department?               @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  project            Project?                  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  role               RespondentRole?           @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  format             CollaborationFormat?      @relation(fields: [formatId], references: [id], onDelete: SetNull)
+  directions         SurveyResponseDirection[]
+  answers            Answer[]
+
+  @@index([surveyId, status, submittedAt])
+  @@index([departmentId, projectId])
+  @@index([anonymityMode])
+}
+
+model SurveyResponseDirection {
+  responseId        String
+  directionId       String
+  directionSnapshot String
+  response          SurveyResponse         @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  direction         ProcessOfficeDirection @relation(fields: [directionId], references: [id])
+
+  @@id([responseId, directionId])
+}
+
+model Answer {
+  id                   String         @id @default(cuid())
+  responseId           String
+  questionId           String
+  questionCodeSnapshot String?
+  questionTextSnapshot String
+  questionTypeSnapshot QuestionType
+  numericValue         Float?
+  textValue            String?
+  dateValue            DateTime?
+  periodStart          DateTime?
+  periodEnd            DateTime?
+  notApplicable        Boolean        @default(false)
+  response             SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question             Question       @relation(fields: [questionId], references: [id])
+  options              AnswerOption[]
+
+  @@unique([responseId, questionId])
+  @@index([questionCodeSnapshot, numericValue])
+}
+
+model AnswerOption {
+  answerId         String
+  questionOptionId String
+  valueSnapshot    String
+  labelSnapshot    String
+  answer           Answer         @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  questionOption   QuestionOption @relation(fields: [questionOptionId], references: [id])
+
+  @@id([answerId, questionOptionId])
+}
+
+model SavedDashboardView {
+  id         String   @id @default(cuid())
+  name       String
+  userId     String
+  configJson String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model ExportRecord {
+  id          String   @id @default(cuid())
+  format      String
+  filtersJson String
+  userId      String
+  rowCount    Int
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model ArchiveRecord {
+  id         String    @id @default(cuid())
+  surveyId   String    @unique
+  archivedBy String
+  archivedAt DateTime  @default(now())
+  restoredAt DateTime?
+  survey     Survey    @relation(fields: [surveyId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  detailsJson String?
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}

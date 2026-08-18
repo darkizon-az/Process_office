@@ -1,0 +1,5 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+export default function LoginForm(){const router=useRouter();const [error,setError]=useState("");const [loading,setLoading]=useState(false);async function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();setLoading(true);setError("");const data=new FormData(e.currentTarget);const res=await fetch("/api/auth/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:data.get("email"),password:data.get("password")})});if(res.ok){router.push("/admin");router.refresh()}else{setError("Неверный email или пароль");setLoading(false)}}return <form onSubmit={submit} className="stack">{error&&<div className="error" role="alert">{error}</div>}<div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="username" required/></div><div className="field"><label htmlFor="password">Пароль</label><input id="password" name="password" type="password" autoComplete="current-password" required/></div><button className="button" disabled={loading}>{loading?"Входим…":"Войти"}</button></form>}
